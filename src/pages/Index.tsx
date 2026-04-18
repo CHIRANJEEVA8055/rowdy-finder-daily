@@ -11,9 +11,10 @@ import {
 import DropZone from "@/components/DropZone";
 import ResultsTable from "@/components/ResultsTable";
 import HistoryPanel from "@/components/HistoryPanel";
-import { extractAccusedFromDocx, crossCheck } from "@/lib/dsr-parser";
+import WebhookSettings from "@/components/WebhookSettings";
 import type { MatchResult } from "@/lib/dsr-parser";
-import { parseMasterExcel, getMasterEntryCount } from "@/lib/xlsx-utils";
+import { getMasterEntryCount } from "@/lib/xlsx-utils";
+import { sendToN8n } from "@/lib/n8n-client";
 import { getHistory, saveToHistory } from "@/lib/history";
 import { format } from "date-fns";
 
@@ -63,26 +64,8 @@ export default function Index() {
     setResults(null);
 
     try {
-      // Parse master list
-      const masterList = await parseMasterExcel(masterFile[0]);
-
-      // Extract accused from all DSR files
-      const allAccused = [];
-      for (const file of dsrFiles) {
-        const accused = await extractAccusedFromDocx(file);
-        allAccused.push(...accused);
-      }
-
-      if (allAccused.length === 0) {
-        setError(
-          "No accused names could be extracted from the DSR files. Please check the file format — look for patterns like 'Accused:', 'Name of Accused:', etc."
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Cross-check
-      const matchResults = crossCheck(allAccused, masterList);
+      // Send everything to n8n; the agent does the parsing + matching
+      const matchResults = await sendToN8n(dsrFiles, masterFile[0], reportDate);
       setResults(matchResults);
 
       // Save to history
@@ -92,7 +75,7 @@ export default function Index() {
         reportDate,
         dsrFiles: dsrFiles.map((f) => f.name),
         masterFile: masterFile[0].name,
-        totalAccused: allAccused.length,
+        totalAccused: matchResults.length,
         matchesFound: matchResults.filter((r) => r.isRowdySheeter).length,
         results: matchResults,
       };
@@ -157,6 +140,8 @@ export default function Index() {
                 list
               </p>
             </div>
+
+            <WebhookSettings />
 
             {/* Upload Sections */}
             <div className="mb-6 grid gap-6 lg:grid-cols-5">
@@ -292,8 +277,19 @@ export default function Index() {
             )}
 
             {/* Results */}
-            {results && (
+            {results && results.length > 0 && (
               <ResultsTable results={results} reportDate={reportDate} />
+            )}
+            {results && results.length === 0 && (
+              <div className="rounded-lg border border-border bg-success-light p-6 text-center">
+                <CheckCircle2 className="mx-auto mb-2 h-6 w-6 text-success" />
+                <p className="text-sm font-semibold text-foreground">
+                  No matches found
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  None of the accused in the uploaded DSR files match the master rowdy sheeter list.
+                </p>
+              </div>
             )}
           </>
         ) : (
