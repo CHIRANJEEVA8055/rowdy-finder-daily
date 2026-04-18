@@ -141,6 +141,8 @@ export default function Index() {
               </p>
             </div>
 
+            <WebhookSettings />
+
             {/* Upload Sections */}
             <div className="mb-6 grid gap-6 lg:grid-cols-5">
               {/* DSR Files - larger */}
@@ -275,8 +277,19 @@ export default function Index() {
             )}
 
             {/* Results */}
-            {results && (
+            {results && results.length > 0 && (
               <ResultsTable results={results} reportDate={reportDate} />
+            )}
+            {results && results.length === 0 && (
+              <div className="rounded-lg border border-border bg-success-light p-6 text-center">
+                <CheckCircle2 className="mx-auto mb-2 h-6 w-6 text-success" />
+                <p className="text-sm font-semibold text-foreground">
+                  No matches found
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  None of the accused in the uploaded DSR files match the master rowdy sheeter list.
+                </p>
+              </div>
             )}
           </>
         ) : (
