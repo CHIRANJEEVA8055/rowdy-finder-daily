@@ -11,9 +11,10 @@ import {
 import DropZone from "@/components/DropZone";
 import ResultsTable from "@/components/ResultsTable";
 import HistoryPanel from "@/components/HistoryPanel";
-import { extractAccusedFromDocx, crossCheck } from "@/lib/dsr-parser";
+import WebhookSettings from "@/components/WebhookSettings";
 import type { MatchResult } from "@/lib/dsr-parser";
-import { parseMasterExcel, getMasterEntryCount } from "@/lib/xlsx-utils";
+import { getMasterEntryCount } from "@/lib/xlsx-utils";
+import { sendToN8n } from "@/lib/n8n-client";
 import { getHistory, saveToHistory } from "@/lib/history";
 import { format } from "date-fns";
 
@@ -63,26 +64,8 @@ export default function Index() {
     setResults(null);
 
     try {
-      // Parse master list
-      const masterList = await parseMasterExcel(masterFile[0]);
-
-      // Extract accused from all DSR files
-      const allAccused = [];
-      for (const file of dsrFiles) {
-        const accused = await extractAccusedFromDocx(file);
-        allAccused.push(...accused);
-      }
-
-      if (allAccused.length === 0) {
-        setError(
-          "No accused names could be extracted from the DSR files. Please check the file format — look for patterns like 'Accused:', 'Name of Accused:', etc."
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Cross-check
-      const matchResults = crossCheck(allAccused, masterList);
+      // Send everything to n8n; the agent does the parsing + matching
+      const matchResults = await sendToN8n(dsrFiles, masterFile[0], reportDate);
       setResults(matchResults);
 
       // Save to history
@@ -92,7 +75,7 @@ export default function Index() {
         reportDate,
         dsrFiles: dsrFiles.map((f) => f.name),
         masterFile: masterFile[0].name,
-        totalAccused: allAccused.length,
+        totalAccused: matchResults.length,
         matchesFound: matchResults.filter((r) => r.isRowdySheeter).length,
         results: matchResults,
       };
